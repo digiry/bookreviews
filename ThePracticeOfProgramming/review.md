@@ -1,5 +1,7 @@
 <!-- markdownlint-disable MD025 MD036 -->
 
+![프로그래밍 수련법](cover.jpg)
+
 # 한줄평
 
 프로그램 대가들이 알려주는 실전팁
