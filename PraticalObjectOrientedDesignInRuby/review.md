@@ -197,6 +197,401 @@ bent.spares
 
 ## 7장 모듈을 통한 역할 공유
 
-* 어떤 문제들은 ㅇ 문제를 해결하기 위해서가 아니라면 별로 연관이 없는 개체들이 공통의 행동을 공유하게 만든다. 이런 공통의 행동은 클래스와 아무런 상관이 없다. 이 행동은 객체가 수행하는 **역할(role)** 이다.
-* 우리는 두 가지를 결정해야 한다. 코드가 무엇을 해야 하는지, 그리고 코드를 어디에 두어야 하는지. 일을 시작하기 가장 좋은 출발점은 이 두 결정을 분리해서 다루는 것이다.
+* 어떤 문제들은 이 문제를 해결하기 위해서가 아니라면 별로 연관이 없는 개체들이 공통의 행동을 공유하게 만든다. 이런 공통의 행동은 클래스와 아무런 상관이 없다. 이 행동은 객체가 수행하는 **역할(role)** 이다.
+* 메서드를 추가하기 위해서는 실제 코드를 작성해야 하고, 이 코드를 어디에 작성할지 고민할 수밖에 없다. 우리는 두 가지를 결정해야 한다. 코드가 무엇을 해야 하는지, 그리고 코드를 어디에 두어야 하는지. 일을 시작하기 가장 좋은 출발점은 이 두 결정을 분리해서 다루는 것이다.
 * 이번 장은 '고전적 상속'과 '모듈을 통한 코드 공유' 사이의 구분을 유지하기 위해 노력해왔다. 상속인 것과 상속처럼 행동하는 것의 차이는 분명 중요하다.
+
+`메서드 탐색(method lookup)에 대한 거의 완벽한 설명`
+
+```plain
+             Object (Object 클래스에서 정의된 메서드)
+                |
+             modules (Bicycle 클래스에 인클루드된 모듈에서 정의된 메서드)
+                |
+             Bicycle (Bicycle 클래스에서 정의된 메서드)
+                |
+             modules (MountainBike 클래스에 인크루드된 모듈에서 정의된 메서드)
+                |
+           MountainBike (MountainBike 클래스에서 정의된 메서드)
+                |
+             modules (MountainBike의 인스턴스에 익스텐든된 모듈에서 정의된 메서드)
+                |
+           singleton class (단 하나의 MountainBike 인스턴스가 전의하고 있는 메서드)
+                |
+메세지 --> a mountain bike
+```
+
+* 우리의 목표는 이 기술로부터 도망치는 것이 아니라 꼭 필요할 때, 올바른 곳에서, 제대로 사용하는 법을 배우는 것이다.
+* 모든 하위클래스가 아니라 몇몇 하위클래스에게만 적용되는 코드가 상위클래스에 포함되어 있으면 안 된다. 이 원칙은 모듈에도 적용될 수 있다. 모듈에 포함되어 있는 코드는 이 모듈을 사용하는 모든 객체에게 적용되어야 한다.
+* 하위 클래스가 상송받은 메서드를 재정의해서 `나는 이런 것을 하지 않습니다`라고 말하고 있다면 사실은 `나는 이런 것이 아닙니다`라고 말하는 것과 별반 다르지 않다. 여기서 좋은 결과가 나올 리 없다. 추상화 해야 할 내용을 잘 찾지 못하겠다면 그럴 만한 내용이 없는 뜻일 수도 있다. 그리고 공통으로 사용할 만한 추상화된 코드가 없다면 주어진 디자인 이슈의 해결채은 상속이 아니다.
+* 템플릿 메서드는 알고리즘의 변경되는 지점들을 표현하고, 이 템플릿 메서드를 만드는 것을 통해 우리는 어떤 내용이 변하는 것이며 어떤 것이 변하지 않는 내용인지 명시적으로 선택하게 된다.
+* (->이게 템플릿 메서드의 특징인거 같다. 변하는 것과 변하지 않는 것을 제공한다.)
+* 같은 역할을 수행하는 객체가 행동을 공유해야 할 때 이들은 루비의 모듈을 사용한다. 모듈에 정의된 코드는 어떤 객체에든 추가할 수 있다. 클래스의 인스턴스든 클래스 그 자체든 또는 다른 모듈이든 상관없다.
+* 리스코프 치원 원칙의 수학적 의미는 '상위타입은 자신의 하위타입으로 치환될 수 있다.'는 뜻이고, 루비의 언어로 표현하자면 '객체는 자기 자신이 누구라고 밝힌 그대로 행동해야 한다.'는 뜻이다.
+
+## 8장 조합을 이용해 객체 통합하기
+
+* **상속의 결과 받아들이기**
+  * `상속의 이점`
+    * 메서드를 변경하면 그 여파가 상속 관계를 따라 저 아래에까지 미친다. 때문에 제대로 구조화된 상속 관계는 매우 **적절하다(reasonable).** 코드의 작은 한 부분만 수정해도 행동의 변화를 크게 이끌어 낼 수 있다.
+    * 코드에 상속을 적용한 결과를 **열려있고-닫혀있다(open-closed)** 고 표현할 수 있다. 상속 관계는 확장에 열려있고, 동시에 수정에는 닫혀있다. 기존 상속구조에 새로운 클래스를 추가하려 할 때 기존 코드를 전혀 수정하기 않아도 된다. 그렇기 때문에 상속관계는 **사용가능(usable)** 하다.
+    * 주어진 패턴을 따라하기도 쉽다. 새로운 하위클래스를 만들려는 프로그래머는 기존 코드를 자연스럽게 참조할 수 있다. 때문에 상속 관계는 **모범이 된다(exemplary).**
+    * 상위클래스와 하위클래스 사이의 '무엇이다 관계(is-a relationship)'는 매우 자연스럽다.
+  * `상속의 비용`
+    * 상속을 사용하는 데 따르는 우려는 크게 두 가지다. 첫째, 상속이 어울리지 않는 문제를 해결하는 데 상속을 사용할 수 있다. 구조 자체가 잘못되어 있기 때문에 새로운 행동이 끼어들 자리가 없다. 어쩔 수 없이 코드의 중복을 허용하거나 코드를 다시 작성하게 된다.
+    * 둘째, 상속이 문제를 해결하기 위한 적절한 방법일지라도 다른 프로그래머가 우리가 작성한 코드를 우리가 바라지 않는 방식으로 사용할 수 있다.
+    * **적절하고(reasonable), 사용가능하고(usable), 모범이 되는(exemplary) 것.** 이런 가치들은 동전 양면의 한쪽과 같은 것들이다.
+      * **적절함(reasonable)** 의 반대편에는 잘못된 상속 관계 속에서 코드를 수정할 때 매우 큰 비용이 발생한다는 문제가 있다. 작은 수정 하나가 모든 것을 엉망으로 만들어 버린다.
+      * **사용가능성(usable)** 의 반대쪽에는 새로운 행동을 도저히 추가할 수 없는 상황이 있다. 두 클래스의 특성을 하나의 객체 속에 묶어내지 못한다. 이미 만들어 놓은 행동을 수정하지 않고는 다시 사용할 수 없는 것이다.
+      * **모범이 됨(exemplary)** 의 반대편에는 초보 프로그래머가 잘못된 상속 관계를 확장하려 했을 때 만들어 내는 엄청난 혼란이 숨어 있다. 적용할 수 없는 상속 관계를 발견했다면 확장하지 말고 리팩터링해야 한다.
+  * 상속은 "내가 실수하면 어떤 일이 벌어질까?라는 질문을 매우 중요하게 고려해야 한다.
+  * 객체를 상속받아야만 행동을 가져올 수 있는 프레임워크를 만드는 것은 좋지 않다. 누군가의 애플리케이션은 이미 자신의 상속 관계를 가지고 있기 때문에 우리가 만든 프레임워크를 상속받는 것 자체가 불가능할 수도 있다.
+* **조합의 결과 받아들이기**
+  * `조합의 이점`
+    * 작은 객체들은 하나의 책임만을 갖고 있고, 자신의 행동을 직접 명시하고 있다. **투명한(transparent)** 객체들이다.
+    * 조합된 객체는 자신의 부분들을 인터페이스를 통해 관리하기 때문에 한 부분을 새로 추가하는 것이 쉽다. 조합된 객체의 관점에서 보자면 이미 있던 한 부분의 변형된 형태를 추가한다는 것은 충분히 말이 되는, **적절한(reasonable)** 것이며 자기 내부의 코드는 수정하지 않아도 된다.
+    * 조합에 관여하는 객체들은 본질적으로 그 크기가 작다. 구조적으로 독립되어 있고 잘 정의된 인터페이스를 가지고 있다. 잘 조합된 객체는 새로운 환경에서도 손쉽게 **사용할(usable)** 수 있다.
+  * `조합의 비용`
+    * 조합된 객체는 여러 부분들과 관계를 맺고 있다. 각각의 부분이 작고 쉽게 이해할 수 있더라도, 이 부분들이 모여 전체가 작동하는 방식은 훨씬 불명확할 수 있다. 개별 부분들은 충분히 **투명(transparent)** 하더라도 전체는 그렇지 않을 수 있다.
+    * 구조로부터 독립성은 자동화된 메시지 전달을 포기하면서 얻은 것이다. 조합된 객체는 누구에게 어떤 메시지를 전달해야 할지 명확하게 알고 있어야 한다.
+* **올바른 관계 선택하기**
+  * `무엇이다(is-a) 관계에서 상속 사용하기`
+    * 현실세계에서 볼 수 있는 물체 중에서 고정적이고 일반-특수의 상속 관계가 뚜렷한 것은 고전적 상속으로 구조화하기 좋은 대상이다.
+    * 모든 샥(shock: 자전거의 충격완충장치)은 조금씩 달라도 전부 샷(shocks)이다. 부품의 '샥-다룸(shock-ness)'이 샥의 핵심을 이룬다. 다양한 샥에 대한 가장 정확하고 상세한 설명은 '이것은 샥이다(it is-a shock)' 정도가 될 것이다.
+  * `무엇처럼 행동하는(behaves-like-a) 관계에는 오리 타입을 사용하라`
+    * 어떤 문제는 여러 개의 객체가 같은 역할을 수행해야 하는 상황을 만든다.
+    * 역할을 이해하기 위한 좋은 방법 중 하나는 외부의 관점에서 생각해 보는 것이다. 역할을 수행하는 객체의 관점이 아니라, 역할을 부여하는 객체의 관점에서 생각해 보는 것이다.
+  * `가지고 있는(has-a) 관계에서 조합 사용하기`
+    * 자전거는 부품들(parts)을 가지고 있다. 하지만 자전거 자체는 부품들의 묶음 이상의 것이다. 자전거는 부품들의 행동과는 전혀 다른, 그리고 부품들의 행동보다 더 나아간 그 고유의 행동을 가지고 있다.
+    * (-> 부품 자체의 행동은 고정하거나, 회전하는 등의 행동을 가진다. 하지만 자전거는 사람, 물건을 이동시키고, 운송하는 등의 고유의 행동을 가진다.)
+    * 객체가 많은 부분을 가지고 있을수록 조합을 사용해서 객체를 디자인하는 것이 더 어울린다. 개별 부품들 속으로 관심을 옮겨갈수록 몇 가지 변형된 형태만을 갖는 특정 부품들을 만날 가능성이 높아진다. 이것들은 상속을 사용하기 좋은 대상들이다.
+* 조합, 고전적 상속, 모듈을 통한 행동 공유는 서로 대립되는 코드 재배치 기술이다. 각각은 나름의 비용과 이익을 제공한다. 이런 차이가 미묘하게 다른 문제를 해결하는 데 특정 기술의 우위를 보장해준다. 이런 기술들은 하나의 도구일 뿐 그 이상이 아니다. 그리고 기술들을 모두 연마하면 보다 나은 디자이너가 될 수 있다. 각각을 제대로 사용하는 것은 경험과 판단력의 문제이다. **경험을 쌓는 가장 좋은 방법은 직접 실수를 통해 배우는 것이다.**
+
+```ruby
+class Bicycle
+    attr_reader :size, :parts
+
+    def initialize(args={})
+        @size = args[:size]
+        @parts = args[:parts]
+    end
+
+    def spares
+        parts.spares
+    end
+end
+
+require 'forwardable'
+class Parts
+    extend Forwardable
+    def_delegators :@parts, :size, :each
+    include Enumerable
+
+    def initialize(parts)
+        @parts = parts
+    end
+
+    def spares
+        select {|part| part.needs_spare}
+    end
+end
+
+require 'ostruct'
+module PartsFactory
+    def self.build(config, parts_class = Parts)
+        parts_class.new(
+            config.collect {|part_config|
+                create_part(part_config)})
+    end
+
+    def self.create_part(part_config)
+        OpenStruct.new(
+            name: part_config[0],
+            description: part_config[1],
+            needs_spare: part_config.fetch(2, true))
+    end
+end
+
+road_config =
+    [['chain', '10-speed'],
+     ['tire_size', '23'],
+     ['tape_color', 'red']]
+
+mountain_config =
+    [['chain', '10-speed'],
+     ['tire_size', '2.1'],
+     ['front_shock', 'Manitou', false],
+     ['rear_shock', 'Fox']]
+```
+
+```ruby
+road_bike =
+    Bicycle.new(
+        size: 'L',
+        parts: PartsFactory.build(road_config))
+
+road_bike.spares
+# -. [#<OpenStruct PartsFactory::Part name="chain", etc ...
+
+mountain_bike =
+    Bicycle.new(
+        size: 'L',
+        parts: PartsFactory.build(mountain_config))
+
+mountain_bike.spares
+# -> [#<OpenStruct PartsFactory::Part name="chain", etc ...
+```
+
+* 새로운 자전거 만들기: 리컴벤트 자전거
+
+```ruby
+recumbent_config =
+    [['chain', '9-speed'],
+     ['tire_size', '28'],
+     ['flag', 'tall and orange']]
+
+recumbent_bike =
+    Bicycle.new(
+        size: 'L',
+        parts: PartsFactory.build(recumbent_config))
+
+recumbent_bike.spares
+# -> [#<OpenStruct PartFactory::Part
+#         name="chain",
+#         description="9-speed",
+#         needs_spare=true>,
+#     #<OpenStruct PartFactory::Part
+#         name="tire_size",
+#         description="28",
+#         needs_spare=true>,
+#     #<OpenStruct PartFactory::Part
+#         name="flag",
+#         description="tall and orange",
+#         needs_spare=true>]
+```
+
+## 9장 비용-효율적인 테스트 디자인하기
+
+* 수정하기 쉬운 코드를 작성하는 일은 예술적인 작업이며 세 가지 기술이 필요하다.
+  * 첫째, 객체지향 디자인을 이해하고 있어야 한다.
+    * 쉽게 바꿀 수 있는 코드가 곧 잘 디자인된 코드이다.
+  * 둘째, 코드를 리팩터링하는 법을 익혀야 한다.
+    * 리팩터링은 소프트웨어 시스템을 수정하는 과정이다. 이 과정은 코드의 외적인 작동방식을 변경하지 않으면서도, 그 내부 구조를 발전시킨다.
+  * 마지막으로, 수정 가능한 코드를 작성하려면 높은 수준의 테스트를 짤 수 있어야 한다. 테스트는 지속적인 리팩터링에 안정감과 확신을 준다.
+* 테스트를 통해 좋은 가치를 얻기 위해서는 테스트의 의도를 명확히 하는 것, 무엇을 언제 그리고 어떻게 테스트를 해야 할지 알아야 한다.
+* **테스트 의도를 알기**
+  * `버그 찾아내기`
+    * 개발 초기 단계에서 버그를 찾아내면 큰 이득을 얻을 수 있다.
+  * `문서를 제공하기`
+    * 테스트만이 디자인에 대한 믿을 수 있는 문서를 제공한다.
+    * 미래의 우리가 기억상실증에 걸릴 것이라 예상하고 테스트를 작성하자. 우리가 언젠가는 잊게 된다는 사실을 기억하자. 한때 우리가 알고 있던 이야기를 다시 들려줄 수 있는 테스트를 작성하자.
+  * `디자인 결정을 미루기`
+    * 테스트는 디자인 결정을 안전하게 미룰 수 있도록 해준다.
+    * 언젠가는 구체적인 여러 경우를 하나로 추상화하는 코드를 만들겠지만 지금은 이 추상화를 그려내기 위한 충분한 정보를 가지고 있지 않다.
+    * 의도적으로 인터페이스에 의존하는 테스트를 작성하면 아무런 대가를 치르지 않고도 안전하게 디자인 결정을 미룰 수 있다.
+  * `추상화를 돕기`
+    * 드디어 새로운 정보를 얻었고 이제 디자인 결정을 내려야 하는 시점이 왔을 때 우리의 작업은 코드의 추상화 정도(level)를 높이게 된다.
+    * 추상화된 코드는 아주 유연한 디자인 요소지만, 디자인이 발전하기 위해서는 하나의 작은 대가를 지불해야만 한다. 그 대가란 '추상화된 코드 각각은 이해하기 쉽지만 코드 속에 전체의 작동을 명확하게 보여주는 지점이 없다'는 것이다.
+  * `디자인의 결점 드러내기`
+    * 테스트의 또 다른 이점은 디자인의 결정을 드러내 준다는 점이다. 테스트를 작성하기 위한 준비 작업이 너무 힘겹다면 코드에 너무 많은 맥락(context)이 있다는 뜻이다.
+    * 테스트는 탄관 속의 카나리아 같은 존재다. 디자인이 나쁠 때 테스트는 힘들어진다.
+* 대부분의 프로그래머들은 테스트를 너무 많이 짠다.
+* 테스트에서 더 나은 가치를 얻기 위한 방법 중 하나는 테스트를 덜 짜는 것이다.
+* 자신의 밖으로 나가는 메시지의 상태를 테스트할 필요도 없고 테스트해서도 안 된다. 객체는 오직 자신의 퍼블릭 인터페이스에 속하는 메시지의 상태만 검증해야 한다.
+* 들어오는 메시지에 대해서는 메시지가 반환하는 상태를 테스트한다. 밖으로 나가는 커맨드 메시지에 대해서는 이 메시지가 제대로 전송되었는지 테스트해야 한다.
+* 테스트를 먼저 작성하는 것이 좋다.
+* 불행히도 초보 디자이너가 테스트를 먼저 작성해도 좋은 상황인지 아닌지를 판단하는 일은 쉽지 않기 때문에 이런 조언은 별 도움이 안 된다.
+* 아직 훈련이 덜 되었기 때문에 테스트를 먼저 작성하는 것이 당황스럽고 힘들겠지만 꾸준히 수련한다면 언젠가는 테스트할 수 있는 코드를 작성할 수 있게 될 것이며 이는 테스트 작성 훈련을 통해서만 얻을 수 있다.
+* 만약 이 책을 읽는 독자가 초보 디자이너이고 지나치게 복잡안 애플리케이션에 맞닥뜨린 상황에 처해있다면 테스트의 가치를 계속 믿는 것이 중요하다.
+* 테스트는 꼭 필요하다. 잘 디자인된 애플리케이션은 매우 추상적이고, 계속 변경된다. 테스트가 없다면 이해할 수도 없고 안전하게 수정할 수도 없을 것이다. 최상의 테스트는 실제 코드와 느슨하게 결합되어 있어야 한다. 그리고 모든 코드를 한 번만, 제대로 된 장소에서 테스트해야 한다. 이런 테스트는 코드 작성 비용을 높이지 않으면서도 새로운 가치를 제공한다.
+* 잘 디자인된 애플리케이션이 섬세하게 다듬어진 테스트 묶음을 가지고 있다면 이 애플리케인션은 바라보기만 해도 기쁘고 확장하는 작업도 즐겁다. 모든 새로운 상황에 적응할 수 있으며 예상치 못했던 그 어떤 요구사항에도 대처할 수 있다.
+
+**역할을 문서화하기 위한 테스트**
+
+```ruby
+module DiameterizableInterfaceTest
+    def test_implements_the_diameterizable_interface
+        assert_respond_to(@object, :width)
+    end
+end
+
+class WheelTest < MiniTest::Unit::TestCase
+    include DiameterizableInterfaceTest
+
+    def setup
+        @wheel = @object = Wheel.new(26, 1.5)
+    end
+
+    def test_calculates_diameter
+        # . . .
+    end
+end
+```
+
+**테스트 더블(Test Double) 또는 가짜 객체 주입하여 의존성 끊기와 테스트 더블이 인터페이스를 따르는지 검증**
+
+```ruby
+class DiameterDouble
+    def diameter
+        10
+    end
+end
+
+# 테스트 더블이 올바른 인터페이스를 따르고 있는지 검증한다.
+class DiameterDoubleTest < MiniTest::Unit::TestCase
+    include DiameterizableInterfaceTest
+
+    def setup
+        @object = DiameterDouble.new
+    end
+end
+
+class GearTest < MiniTest::Unit::TestCase
+    def test_calculates_gear_inches
+        gear = Gear.new(
+            chainring: 52,
+            cog: 11,
+            wheel: DiamterDouble.new)
+
+        assert_in_delta(47.27,
+                        gear.gear_inches,
+                        0.01)
+    end
+end
+```
+
+**상속 받은 코드 테스트하기**
+
+```ruby
+module BicycleInterfaceTest
+    def test_responds_to_defualt_tire_size
+        assert_respond_to(@object, :default_tire_size)
+    end
+
+    def test_responds_to_default_chain
+        assert_respond_to(@object, :default_chain)
+    end
+
+    def test_responds_to_chain
+        assert_respond_to(@object, :chain)
+    end
+
+    def test_responds_to_size
+        assert_respond_to(@object, :size)
+    end
+
+    def test_responds_to_tire_size
+        assert_respond_to(@object, :tire_size)
+    end
+
+    def test_responds_to_spares
+        assert_repond_to(@ojbect, :spares)
+    end
+end
+
+class BicycleTest < MiniTest::Unit:TestCase
+    include BicycleInterfaceTest
+
+    def setup
+        @bike = @object = Bicycle.new({tire_size: 0})
+    end
+
+    # 상위클래스의 요구사항 검증하기
+    def test_forces_subclasses_to_implement_default_tire_size
+        assert_raises(NotImplementedError) {@bike.default_tire_size}
+    end
+end
+
+class RoadBikeTest < MiniTest::Unit::TestCase
+    include BicycleInterfaceTest
+
+    def setup
+        @bike = @object = RoadBike.new(tape_color: 'red')
+    end
+
+    # 구체적인 하위 클래스의 행동 테스트하기
+    def test_puts_tape_color_in_local_spares
+        assert_equal 'red', @bike.local_spares[:tape_color]
+    end
+end
+```
+
+**하위 클래스의 책임 명확히 하기**
+
+```ruby
+module BicycleSubclassTest
+    def test_responds_to_post_initialize
+        assert_respond_to(@object, :post_initialize)
+    end
+
+    def test_responds_to_local_spares
+        assert_respond_to(@object, :local_spares)
+    end
+
+    def test_responds_to_default_tire_size
+        assert_respond_to(@object, :default_tire_size)
+    end
+end
+
+class RoadBikeTest < MiniTest::Unit::TestCase
+    include BicycleInterfaceTest
+    include BicycleSubclassTest
+
+    def setup
+        @bike = @object = RoadBike.new
+    end
+end
+
+class MountainBikeTest < MiniTest::Unit::TestCase
+    include BicycleInterfaceTest
+    include BicycleSubclassTest
+
+    def setup
+        @bike = @object = MountainBike.new
+    end
+end
+```
+
+**추상화된 상위클래스의 행동 테스트하기**
+
+```ruby
+class StubbedBike < Bicycle
+    def default_tire_size
+        0
+    end
+
+    def local_spares
+        {saddle: 'painful'}
+    end
+end
+
+class BicycleTest < MiniTest::Unit::TestCase
+    include BicycleInterfaceTest
+
+    def setup
+        @bike = @object = Bicycle.new({tire_size: 0})
+        @stubbed_bike = StubbedBike.new
+    end
+
+    # 상위클래스의 요구사항 검증하기
+    def test_forces_subclasses_to_implement_default_tire_size
+        assert_raises(NotImplementedError) {@bike.default_tire_size}
+    end
+
+    def test_includes_local_spares_in_spares
+        assert_equal @stubbed_bike.spares,
+                    { tire_size: 0,
+                      chain: '10-speed',
+                      saddle: 'painful' }
+    end
+end
+
+# 테스트 더블이 이 테스트가 요구하는 인터페이스를 충실히 따르고 있다는 것을 확인한다.
+class StubbedBikeTest < MiniTest::Unit::TestCase
+    include BicycleSubclassTest
+
+    def setup
+        @object = StubbedBike.new
+    end
+end
+```
